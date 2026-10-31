@@ -81,6 +81,21 @@ jobs:
           json.dump(c, open('build-system/glassgram-configuration.json', 'w'), indent=2)
           PY
 
+      - name: Продлить срок фейковых профилей (в репозитории они просрочены)
+        working-directory: telegram
+        run: |
+          python3 - <<'PY'
+          import re, glob
+          for f in glob.glob('build-system/fake-codesigning/profiles/*.mobileprovision'):
+              d = open(f, 'rb').read()
+              def bump(m):
+                  y = int(m.group(2)) + 10
+                  return m.group(1) + str(y).encode() + m.group(3)
+              n, c = re.subn(rb'(<key>ExpirationDate</key>\s*<date>)(\d{4})(-[^<]+</date>)', bump, d)
+              open(f, 'wb').write(n)
+              print(f, 'продлён' if c else 'ExpirationDate не найден')
+          PY
+
       - name: Собрать IPA
         working-directory: telegram
         run: |
