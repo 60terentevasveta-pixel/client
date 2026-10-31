@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       runner:
-        description: 'Образ macOS (если не сработает - macos-15)'
-        default: 'macos-26'
+        description: 'Образ macOS (для Xcode 27: xcode-27)'
+        default: 'xcode-27'
         required: true
       ref:
         description: 'Ветка или тег Telegram-iOS (пусто = master)'
@@ -53,6 +53,10 @@ jobs:
           XV=$(python3 -c "import json;print(json.load(open('versions.json'))['xcode'])")
           echo "Нужен Xcode $XV"
           CAND=$(ls -d /Applications/Xcode_${XV}*.app 2>/dev/null | head -1 || true)
+          if [ -z "$CAND" ]; then
+            MAJ=${XV%%.*}
+            CAND=$(ls -d /Applications/Xcode_${MAJ}*.app 2>/dev/null | sort -V | tail -1 || true)
+          fi
           if [ -n "$CAND" ]; then
             sudo xcode-select -s "$CAND/Contents/Developer"
             echo "OVERRIDE=" >> $GITHUB_ENV
@@ -80,6 +84,7 @@ jobs:
       - name: Собрать IPA
         working-directory: telegram
         run: |
+          set -eo pipefail
           mkdir -p build/artifacts
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           python3 -u build-system/Make/Make.py $OVERRIDE \
