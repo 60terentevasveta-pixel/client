@@ -106,6 +106,23 @@ jobs:
               print(os.path.basename(f), 'продлён до +10 лет')
           PY
 
+      - name: Патч - работать без App Group (бесплатный Apple ID их не даёт)
+        working-directory: telegram
+        run: |
+          set -eo pipefail
+          python3 - <<'PY'
+          p = 'submodules/TelegramUI/Sources/AppDelegate.swift'
+          s = open(p, encoding='utf-8').read()
+          old = 'let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)'
+          new = ('let maybeAppGroupUrl: URL? = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)'
+                 ' ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first')
+          assert s.count(old) == 1, 'строка с App Group не найдена - код Telegram изменился'
+          open(p, 'w', encoding='utf-8').write(s.replace(old, new))
+          print('патч применён')
+          PY
+          echo "--- остальные обращения к App Group в основном коде:"
+          grep -rn "forSecurityApplicationGroupIdentifier" submodules Telegram --include=*.swift --include=*.m --include=*.mm | grep -v "Telegram/Share\|Telegram/Notification\|Telegram/SiriIntents\|Telegram/Widget\|Telegram/Broadcast" || true
+
       - name: Собрать IPA
         working-directory: telegram
         run: |
