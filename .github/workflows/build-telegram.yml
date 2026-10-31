@@ -1,0 +1,123 @@
+name: Build Telegram iOS (unsigned IPA)
+
+# Собирает официальный клиент Telegram-iOS (открытый код) со ВАШИМ api_id/api_hash.
+# Результат: IPA, который потом подписывается в Sideloadly. Запуск вручную: Actions -> Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: 'Образ macOS (если не сработает - macos-15)'
+        default: 'macos-26'
+        required: true
+      ref:
+        description: 'Ветка или тег Telegram-iOS (пусто = master)'
+        default: ''
+        required: false
+
+jobs:
+  build:
+    runs-on: ${{ github.event.inputs.runner }}
+    timeout-minutes: 350
+    env:
+      TG_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+      TG_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+    steps:
+      - name: Проверка секретов
+        run: |
+          if ! [[ "$TG_API_ID" =~ ^[0-9]+$ ]]; then echo "::error::Секрет TELEGRAM_API_ID пуст или не число"; exit 1; fi
+          if ! [[ "$TG_API_HASH" =~ ^[0-9a-f]{32}$ ]]; then echo "::error::Секрет TELEGRAM_API_HASH должен быть 32 символа 0-9a-f"; exit 1; fi
+
+      - name: Свободное место и железо
+        run: |
+          df -h /
+          sysctl -n hw.ncpu hw.memsize
+          sw_vers
+          ls /Applications | grep -i xcode || true
+
+      - name: Скачать Telegram-iOS
+        run: |
+          REF="${{ github.event.inputs.ref }}"
+          if [ -n "$REF" ]; then
+            git clone --depth 1 --branch "$REF" --recurse-submodules --shallow-submodules -j8 https://github.com/TelegramMessenger/Telegram-iOS.git telegram
+          else
+            git clone --depth 1 --recurse-submodules --shallow-submodules -j8 https://github.com/TelegramMessenger/Telegram-iOS.git telegram
+          fi
+          cd telegram
+          git log -1 --oneline
+          cat versions.json
+
+      - name: Выбрать Xcode по versions.json
+        working-directory: telegram
+        run: |
+          XV=$(python3 -c "import json;print(json.load(open('versions.json'))['xcode'])")
+          echo "Нужен Xcode $XV"
+          CAND=$(ls -d /Applications/Xcode_${XV}*.app 2>/dev/null | head -1 || true)
+          if [ -n "$CAND" ]; then
+            sudo xcode-select -s "$CAND/Contents/Developer"
+            echo "OVERRIDE=" >> $GITHUB_ENV
+          else
+            echo "::warning::Xcode $XV нет на образе, использую текущий с --overrideXcodeVersion"
+            echo "OVERRIDE=--overrideXcodeVersion" >> $GITHUB_ENV
+          fi
+          xcodebuild -version
+
+      - name: Подставить ваш api_id / api_hash
+        working-directory: telegram
+        run: |
+          python3 - <<'PY'
+          import json, os
+          p = 'build-system/appstore-configuration.json'
+          c = json.load(open(p))
+          print('ключи конфигурации:', sorted(c.keys()))
+          for k in ('api_id', 'api_hash'):
+              assert k in c, f'в конфигурации нет ключа {k}'
+          c['api_id'] = os.environ['TG_API_ID']
+          c['api_hash'] = os.environ['TG_API_HASH']
+          json.dump(c, open('build-system/glassgram-configuration.json', 'w'), indent=2)
+          PY
+
+      - name: Собрать IPA
+        working-directory: telegram
+        run: |
+          mkdir -p build/artifacts
+          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+          python3 -u build-system/Make/Make.py $OVERRIDE \
+            --bazelUserRoot="$HOME/telegram-bazel-cache" \
+            build \
+            --configurationPath=build-system/glassgram-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --buildNumber=$((100000 + ${{ github.run_number }})) \
+            --configuration=release_arm64 \
+            --outputBuildArtifactsPath=build/artifacts 2>&1 | tee build.log
+          ls -la build/artifacts
+
+      - name: Версия без расширений (для бесплатного Apple ID)
+        working-directory: telegram
+        run: |
+          set -e
+          mkdir ipa && cd ipa
+          unzip -q ../build/artifacts/Telegram.ipa
+          APP=$(ls -d Payload/*.app)
+          ls "$APP"
+          ls "$APP/PlugIns" 2>/dev/null || true
+          rm -rf "$APP/PlugIns" "$APP/Watch"
+          zip -qr ../build/artifacts/Telegram-noext.ipa Payload
+          ls -la ../build/artifacts
+
+      - name: Сохранить IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Telegram-ipa
+          path: |
+            telegram/build/artifacts/Telegram.ipa
+            telegram/build/artifacts/Telegram-noext.ipa
+          retention-days: 14
+
+      - name: Сохранить лог при ошибке
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: telegram/build.log
+          retention-days: 7
