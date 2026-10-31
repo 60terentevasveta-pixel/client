@@ -123,6 +123,31 @@ jobs:
           echo "--- остальные обращения к App Group в основном коде:"
           grep -rn "forSecurityApplicationGroupIdentifier" submodules Telegram --include=*.swift --include=*.m --include=*.mm | grep -v "Telegram/Share\|Telegram/Notification\|Telegram/SiriIntents\|Telegram/Widget\|Telegram/Broadcast" || true
 
+      - name: Патч - отключить iCloud-хранилище токенов (из-за него крашится без iCloud)
+        working-directory: telegram
+        run: |
+          set -eo pipefail
+          python3 - <<'PY'
+          import re
+          p = 'submodules/TelegramCore/Sources/Authorization.swift'
+          s = open(p, encoding='utf-8').read()
+          s, n1 = re.subn(r'NSUbiquitousKeyValueStore\.default\.object\(forKey: "T_SLTokens"\) as\? \[String\]', '(nil as [String]?)', s)
+          lines, n2, out = s.split('\n'), 0, []
+          for ln in lines:
+              if ln.strip().startswith('NSUbiquitousKeyValueStore.default.'):
+                  out.append('        // ' + ln.strip() + '  // отключено патчем')
+                  n2 += 1
+              else:
+                  out.append(ln)
+          s = '\n'.join(out)
+          assert n1 >= 1 and n2 >= 1, 'не нашли обращения к iCloud: %d %d' % (n1, n2)
+          assert 'NSUbiquitousKeyValueStore' not in re.sub(r'//.*', '', s), 'остались обращения к iCloud'
+          open(p, 'w', encoding='utf-8').write(s)
+          print('заменено чтений:', n1, 'отключено записей:', n2)
+          PY
+          echo "--- остальные обращения к iCloud KVS:"
+          grep -rn "NSUbiquitousKeyValueStore" submodules Telegram --include=*.swift --include=*.m --include=*.mm | grep -v "//" || true
+
       - name: Собрать IPA
         working-directory: telegram
         run: |
