@@ -163,6 +163,21 @@ jobs:
           echo "--- остальные CKContainer / CloudKit в коде:"
           grep -rIn "CKContainer\|CKDatabase" submodules Telegram --include=*.swift --include=*.m --include=*.mm | grep -v "submodules/CloudData" || true
 
+      - name: Патч - отключить Siri и iCloud-флаги (без платного аккаунта их нет)
+        working-directory: telegram
+        run: |
+          set -eo pipefail
+          python3 - <<'PY'
+          p = 'submodules/BuildConfig/Sources/BuildConfig.m'
+          s = open(p, encoding='utf-8').read()
+          for old, new in (('return APP_CONFIG_IS_SIRI_ENABLED;', 'return false;'),
+                           ('return APP_CONFIG_IS_ICLOUD_ENABLED;', 'return false;')):
+              assert s.count(old) == 1, 'не найдено: ' + old
+              s = s.replace(old, new)
+          open(p, 'w', encoding='utf-8').write(s)
+          print('Siri и iCloud выключены')
+          PY
+
       - name: Собрать IPA
         working-directory: telegram
         run: |
