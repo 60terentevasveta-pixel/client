@@ -148,6 +148,21 @@ jobs:
           echo "--- остальные обращения к iCloud KVS:"
           grep -rn "NSUbiquitousKeyValueStore" submodules Telegram --include=*.swift --include=*.m --include=*.mm | grep -v "//" || true
 
+      - name: Патч - отключить обращение к CloudKit (аварийные адреса через iCloud)
+        working-directory: telegram
+        run: |
+          set -eo pipefail
+          python3 - <<'PY'
+          p = 'submodules/TelegramUI/Sources/AppDelegate.swift'
+          s = open(p, encoding='utf-8').read()
+          old = 'isICloudEnabled: buildConfig.isICloudEnabled'
+          assert s.count(old) == 1, 'не найдено isICloudEnabled в AppDelegate - код Telegram изменился'
+          open(p, 'w', encoding='utf-8').write(s.replace(old, 'isICloudEnabled: false'))
+          print('CloudKit отключён')
+          PY
+          echo "--- остальные CKContainer / CloudKit в коде:"
+          grep -rIn "CKContainer\|CKDatabase" submodules Telegram --include=*.swift --include=*.m --include=*.mm | grep -v "submodules/CloudData" || true
+
       - name: Собрать IPA
         working-directory: telegram
         run: |
