@@ -84,16 +84,26 @@ jobs:
       - name: Продлить срок фейковых профилей (в репозитории они просрочены)
         working-directory: telegram
         run: |
+          set -eo pipefail
           python3 - <<'PY'
-          import re, glob
-          for f in glob.glob('build-system/fake-codesigning/profiles/*.mobileprovision'):
-              d = open(f, 'rb').read()
-              def bump(m):
-                  y = int(m.group(2)) + 10
-                  return m.group(1) + str(y).encode() + m.group(3)
-              n, c = re.subn(rb'(<key>ExpirationDate</key>\s*<date>)(\d{4})(-[^<]+</date>)', bump, d)
-              open(f, 'wb').write(n)
-              print(f, 'продлён' if c else 'ExpirationDate не найден')
+          import glob, re, subprocess, os, tempfile
+          tmp = tempfile.mkdtemp()
+          k, c, pl = tmp + '/k.pem', tmp + '/c.pem', tmp + '/p.plist'
+          subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', k, '-out', c,
+                          '-subj', '/CN=GlassGram Fake', '-days', '3650'], check=True, capture_output=True)
+          def bump(m):
+              return m.group(1) + str(int(m.group(2)) + 10).encode() + m.group(3)
+          for f in sorted(glob.glob('build-system/fake-codesigning/profiles/*.mobileprovision')):
+              plist = subprocess.run(['openssl', 'smime', '-inform', 'der', '-verify', '-noverify', '-in', f],
+                                     check=True, capture_output=True).stdout
+              new, n = re.subn(rb'(<key>ExpirationDate</key>\s*<date>)(\d{4})(-[^<]+</date>)', bump, plist)
+              assert n == 1, f + ': ExpirationDate не найден'
+              open(pl, 'wb').write(new)
+              subprocess.run(['openssl', 'smime', '-sign', '-signer', c, '-inkey', k, '-in', pl, '-out', f,
+                              '-outform', 'der', '-nodetach', '-binary'], check=True, capture_output=True)
+              chk = subprocess.run(['openssl', 'smime', '-inform', 'der', '-verify', '-noverify', '-in', f], capture_output=True)
+              assert chk.returncode == 0, f + ': проверка подписи не прошла'
+              print(os.path.basename(f), 'продлён до +10 лет')
           PY
 
       - name: Собрать IPA
