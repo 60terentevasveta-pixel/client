@@ -178,6 +178,70 @@ jobs:
           print('Siri и iCloud выключены')
           PY
 
+      - name: Патч - команда /nft (локальный подарок только у вас, для видео)
+        working-directory: telegram
+        run: |
+          set -eo pipefail
+          python3 - <<'PY'
+          import base64
+          p = 'submodules/TelegramUI/Sources/ChatControllerNode.swift'
+          s = open(p, encoding='utf-8').read()
+          anchor = ('    func sendCurrentMessage(silentPosting: Bool? = nil, scheduleTime: Int32? = nil, repeatPeriod: Int32? = nil, postpone: Bool = false, messageEffect: ChatSendMessageEffect? = nil, sendWithoutFormatting: Bool = false, completion: @escaping () -> Void = {}) {\n'
+                    '        guard let textInputPanelNode = self.inputPanelNode as? ChatTextInputPanelNode else {\n'
+                    '            return\n'
+                    '        }\n')
+          assert s.count(anchor) == 1, 'sendCurrentMessage изменился - патч /nft нужно обновить'
+          helper_b64 = (
+          'ICAgIGZ1bmMgZ2xhc3NncmFtSW5zZXJ0TG9jYWxHaWZ0KHNsdWc6IFN0cmluZykgewogICAgICAgIGd1YXJkIGxldC'
+          'BwZWVySWQgPSBzZWxmLmNoYXRMb2NhdGlvbi5wZWVySWQgZWxzZSB7CiAgICAgICAgICAgIHJldHVybgogICAgICAg'
+          'IH0KICAgICAgICBsZXQgbXlJZCA9IHNlbGYuY29udGV4dC5hY2NvdW50LnBlZXJJZAogICAgICAgIGxldCBwcmVzZW'
+          '50YXRpb25EYXRhID0gc2VsZi5jb250ZXh0LnNoYXJlZENvbnRleHQuY3VycmVudFByZXNlbnRhdGlvbkRhdGEud2l0'
+          'aCB7ICQwIH0KICAgICAgICBsZXQgXyA9IChzZWxmLmNvbnRleHQuZW5naW5lLnBheW1lbnRzLmdldFVuaXF1ZVN0YX'
+          'JHaWZ0KHNsdWc6IHNsdWcpCiAgICAgICAgfD4gZGVsaXZlck9uTWFpblF1ZXVlKS5zdGFydFN0YW5kYWxvbmUobmV4'
+          'dDogeyBbd2VhayBzZWxmXSB1bmlxdWVHaWZ0IGluCiAgICAgICAgICAgIGd1YXJkIGxldCBzZWxmIGVsc2UgewogIC'
+          'AgICAgICAgICAgICAgcmV0dXJuCiAgICAgICAgICAgIH0KICAgICAgICAgICAgbGV0IF8gPSAoc2VsZi5jb250ZXh0'
+          'LmFjY291bnQucG9zdGJveC50cmFuc2FjdGlvbiB7IHRyYW5zYWN0aW9uIC0+IFZvaWQgaW4KICAgICAgICAgICAgIC'
+          'AgIGxldCB0aW1lc3RhbXAgPSBJbnQzMihEYXRlKCkudGltZUludGVydmFsU2luY2UxOTcwKQogICAgICAgICAgICAg'
+          'ICAgbGV0IGFjdGlvbiA9IFRlbGVncmFtTWVkaWFBY3Rpb24oYWN0aW9uOiAuc3RhckdpZnRVbmlxdWUoZ2lmdDogLn'
+          'VuaXF1ZSh1bmlxdWVHaWZ0KSwgaXNVcGdyYWRlOiBmYWxzZSwgaXNUcmFuc2ZlcnJlZDogZmFsc2UsIHNhdmVkVG9Q'
+          'cm9maWxlOiBmYWxzZSwgY2FuRXhwb3J0RGF0ZTogbmlsLCB0cmFuc2ZlclN0YXJzOiBuaWwsIGlzUmVmdW5kZWQ6IG'
+          'ZhbHNlLCBpc1ByZXBhaWRVcGdyYWRlOiBmYWxzZSwgcGVlcklkOiBteUlkLCBzZW5kZXJJZDogcGVlcklkLCBzYXZl'
+          'ZElkOiBuaWwsIHJlc2FsZUFtb3VudDogbmlsLCBjYW5UcmFuc2ZlckRhdGU6IG5pbCwgY2FuUmVzYWxlRGF0ZTogbm'
+          'lsLCBkcm9wT3JpZ2luYWxEZXRhaWxzU3RhcnM6IG5pbCwgYXNzaWduZWQ6IGZhbHNlLCBmcm9tT2ZmZXI6IGZhbHNl'
+          'LCBjYW5DcmFmdEF0OiBuaWwsIGlzQ3JhZnRlZDogZmFsc2UsIHRleHQ6IG5pbCwgZW50aXRpZXM6IG5pbCwgbmFtZU'
+          'hpZGRlbjogZmFsc2UpKQogICAgICAgICAgICAgICAgbGV0IF8gPSB0cmFuc2FjdGlvbi5hZGRNZXNzYWdlcyhbU3Rv'
+          'cmVNZXNzYWdlKHBlZXJJZDogcGVlcklkLCBuYW1lc3BhY2U6IE5hbWVzcGFjZXMuTWVzc2FnZS5Mb2NhbCwgY3VzdG'
+          '9tU3RhYmxlSWQ6IG5pbCwgZ2xvYmFsbHlVbmlxdWVJZDogbmlsLCBncm91cGluZ0tleTogbmlsLCB0aHJlYWRJZDog'
+          'bmlsLCB0aW1lc3RhbXA6IHRpbWVzdGFtcCwgZmxhZ3M6IFsuSW5jb21pbmddLCB0YWdzOiBbXSwgZ2xvYmFsVGFncz'
+          'ogW10sIGxvY2FsVGFnczogW10sIGZvcndhcmRJbmZvOiBuaWwsIGF1dGhvcklkOiBwZWVySWQsIHRleHQ6ICIiLCBh'
+          'dHRyaWJ1dGVzOiBbXSwgbWVkaWE6IFthY3Rpb25dKV0sIGxvY2F0aW9uOiAuUmFuZG9tKQogICAgICAgICAgICB9Ci'
+          'AgICAgICAgICAgIHw+IGRlbGl2ZXJPbk1haW5RdWV1ZSkuc3RhcnRTdGFuZGFsb25lKCkKICAgICAgICB9LCBlcnJv'
+          'cjogeyBbd2VhayBzZWxmXSBfIGluCiAgICAgICAgICAgIGd1YXJkIGxldCBzZWxmLCBsZXQgY29udHJvbGxlciA9IH'
+          'NlbGYuY29udHJvbGxlciBlbHNlIHsKICAgICAgICAgICAgICAgIHJldHVybgogICAgICAgICAgICB9CiAgICAgICAg'
+          'ICAgIGNvbnRyb2xsZXIucHJlc2VudCh0ZXh0QWxlcnRDb250cm9sbGVyKGNvbnRleHQ6IHNlbGYuY29udGV4dCwgdG'
+          'l0bGU6IG5pbCwgdGV4dDogItCf0L7QtNCw0YDQvtC6INC90LUg0L3QsNC50LTQtdC9LiDQndCw0L/QuNGI0LjRgtC1'
+          'IC9uZnQg0Lgg0L3QsNC30LLQsNC90LjQtSDQuNC3INGB0YHRi9C70LrQuCwg0L3QsNC/0YDQuNC80LXRgCAvbmZ0IF'
+          'BsdXNoUGVwZS0xMjM0IiwgYWN0aW9uczogW1RleHRBbGVydEFjdGlvbih0eXBlOiAuZGVmYXVsdEFjdGlvbiwgdGl0'
+          'bGU6IHByZXNlbnRhdGlvbkRhdGEuc3RyaW5ncy5Db21tb25fT0ssIGFjdGlvbjoge30pXSksIGluOiAud2luZG93KC'
+          '5yb290KSkKICAgICAgICB9KQogICAgfQogICAgCg=='
+          )
+          intercept_b64 = (
+          'ICAgICAgICBsZXQgZ2xhc3NncmFtVGV4dCA9IHRleHRJbnB1dFBhbmVsTm9kZS5pbnB1dFRleHRTdGF0ZS5pbnB1dF'
+          'RleHQuc3RyaW5nLnRyaW1taW5nQ2hhcmFjdGVycyhpbjogLndoaXRlc3BhY2VzQW5kTmV3bGluZXMpCiAgICAgICAg'
+          'aWYgZ2xhc3NncmFtVGV4dC5sb3dlcmNhc2VkKCkuaGFzUHJlZml4KCIvbmZ0ICIpIHsKICAgICAgICAgICAgbGV0IG'
+          'dsYXNzZ3JhbVJhdyA9IFN0cmluZyhnbGFzc2dyYW1UZXh0LmRyb3BGaXJzdCg1KSkudHJpbW1pbmdDaGFyYWN0ZXJz'
+          'KGluOiAud2hpdGVzcGFjZXNBbmROZXdsaW5lcykKICAgICAgICAgICAgbGV0IGdsYXNzZ3JhbVNsdWcgPSBnbGFzc2'
+          'dyYW1SYXcuY29tcG9uZW50cyhzZXBhcmF0ZWRCeTogIi8iKS5sYXN0ID8/IGdsYXNzZ3JhbVJhdwogICAgICAgICAg'
+          'ICB0ZXh0SW5wdXRQYW5lbE5vZGUudGV4dCA9ICIiCiAgICAgICAgICAgIHNlbGYuZ2xhc3NncmFtSW5zZXJ0TG9jYW'
+          'xHaWZ0KHNsdWc6IGdsYXNzZ3JhbVNsdWcpCiAgICAgICAgICAgIHJldHVybgogICAgICAgIH0K'
+          )
+          helper = base64.b64decode(helper_b64).decode('utf-8')
+          intercept = base64.b64decode(intercept_b64).decode('utf-8')
+          s = s.replace(anchor, helper + anchor + intercept)
+          open(p, 'w', encoding='utf-8').write(s)
+          print('команда /nft добавлена')
+          PY
+
       - name: Собрать IPA
         working-directory: telegram
         run: |
